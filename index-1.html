@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revision Wallpapers — Formula &amp; Concept Wallpaper Generator</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+  :root{
+    --bg: #12141f;
+    --panel: #1b1f2e;
+    --panel-2: #232840;
+    --line: #2c3149;
+    --text: #e8e6df;
+    --muted: #8b8fa3;
+    --amber: #e8a33d;
+    --amber-dim: #6b5326;
+    --teal: #5fb3a3;
+    --danger: #d97066;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(232,163,61,0.10), transparent 60%),
+      radial-gradient(900px 500px at 100% 10%, rgba(95,179,163,0.08), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter', system-ui, sans-serif;
+    line-height:1.5;
+    min-height:100vh;
+  }
+  ::selection{ background:var(--amber-dim); color:var(--text); }
+
+  a{ color:var(--amber); }
+
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:48px 20px 100px;
+  }
+
+  header.hero{
+    margin-bottom:56px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--teal);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:22px; height:1px;
+    background:var(--teal);
+    display:inline-block;
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:clamp(30px, 5vw, 44px);
+    line-height:1.08;
+    margin:0 0 16px;
+    letter-spacing:-0.01em;
+  }
+  h1 em{
+    font-style:italic;
+    color:var(--amber);
+  }
+  .hero p{
+    color:var(--muted);
+    font-size:15.5px;
+    max-width:60ch;
+    margin:0;
+  }
+
+  .step{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:26px 26px 28px;
+    margin-bottom:22px;
+    position:relative;
+  }
+  .step-head{
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    margin-bottom:6px;
+  }
+  .step-num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--amber);
+    border:1px solid var(--amber-dim);
+    background:rgba(232,163,61,0.07);
+    width:26px; height:26px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .step h2{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:20px;
+    margin:0;
+  }
+  .step-desc{
+    color:var(--muted);
+    font-size:14px;
+    margin:2px 0 18px 40px;
+    max-width:64ch;
+  }
+  .step-body{ margin-left:40px; }
+
+  textarea, input[type=text], input[type=number], select{
+    width:100%;
+    background:#0e1019;
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:8px;
+    padding:12px 14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    resize:vertical;
+  }
+  textarea:focus, input:focus, select:focus{
+    outline:none;
+    border-color:var(--teal);
+  }
+  #promptBox{ height:170px; color:var(--muted); }
+  #pasteBox{ height:170px; }
+
+  .btn{
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    padding:10px 18px;
+    border-radius:7px;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    color:var(--text);
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:border-color .15s ease, transform .1s ease;
+  }
+  .btn:hover{ border-color:var(--teal); }
+  .btn:active{ transform:scale(0.98); }
+  .btn.primary{
+    background:var(--amber);
+    border-color:var(--amber);
+    color:#1c1404;
+  }
+  .btn.primary:hover{ border-color:var(--amber); filter:brightness(1.06); }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-row{ display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+
+  .hint{ font-size:12.5px; color:var(--muted); margin-top:10px; }
+  .hint code{ color:var(--teal); font-family:'IBM Plex Mono', monospace; }
+
+  /* parsed cards grid */
+  #summary{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:var(--muted);
+    margin:14px 0;
+  }
+  #summary b{ color:var(--text); }
+  .card-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(210px,1fr));
+    gap:10px;
+    margin-top:14px;
+  }
+  .pcard{
+    background:#0e1019;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 13px;
+    cursor:pointer;
+    font-size:12.5px;
+  }
+  .pcard.off{ opacity:0.35; }
+  .pcard .tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--teal);
+    display:flex; justify-content:space-between; margin-bottom:6px;
+  }
+  .pcard .ttl{ font-weight:600; margin-bottom:2px; }
+  .pcard .ch{ color:var(--muted); font-size:11.5px; }
+
+  /* theme swatches */
+  .theme-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(120px,1fr));
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .swatch{
+    border-radius:8px;
+    border:2px solid var(--line);
+    padding:14px 10px;
+    cursor:pointer;
+    text-align:center;
+    font-size:12px;
+    font-weight:600;
+  }
+  .swatch.active{ border-color:var(--amber); }
+  .swatch .dot{
+    width:100%; height:34px;
+    border-radius:5px;
+    margin-bottom:8px;
+  }
+
+  .field-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-bottom:14px;
+  }
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:6px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .custom-res{ display:none; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+  .custom-res.show{ display:grid; }
+
+  .mode-toggle{ display:flex; gap:10px; margin-bottom:14px; }
+  .mode-opt{
+    flex:1;
+    border:1px solid var(--line);
+    background:#0e1019;
+    border-radius:8px;
+    padding:12px 14px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  .mode-opt.active{ border-color:var(--teal); background:rgba(95,179,163,0.06); }
+  .mode-opt b{ display:block; font-size:13.5px; margin-bottom:2px; }
+  .mode-opt span{ color:var(--muted); font-size:12px; }
+
+  /* preview: phone mockup */
+  .preview-wrap{
+    display:flex;
+    gap:26px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  .phone{
+    width:200px;
+    border-radius:26px;
+    border:6px solid #05060a;
+    background:#000;
+    box-shadow:0 30px 60px -20px rgba(232,163,61,0.15), 0 0 0 1px #05060a;
+    overflow:hidden;
+    position:relative;
+    flex-shrink:0;
+  }
+  .phone::after{
+    content:"";
+    position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:60px; height:16px; background:#05060a; border-radius:0 0 10px 10px;
+  }
+  .phone-screen{
+    width:100%; aspect-ratio:9/19.5;
+    background:#000;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .phone-screen img{ width:100%; height:100%; object-fit:cover; }
+  .phone-screen .ph-empty{ color:#444; font-size:11px; font-family:'IBM Plex Mono',monospace; padding:20px; text-align:center; }
+
+  .preview-meta{ flex:1; min-width:220px; }
+  .preview-meta .label{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--muted); margin-bottom:4px; }
+  .preview-meta select{ margin-bottom:14px; }
+
+  progress{
+    width:100%; height:8px;
+    accent-color:var(--amber);
+    border-radius:4px;
+    overflow:hidden;
+    margin-top:14px;
+  }
+  #genStatus{ font-size:12.5px; color:var(--muted); margin-top:8px; font-family:'IBM Plex Mono', monospace; }
+
+  footer{
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+    margin-top:50px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  @media (max-width:560px){
+    .field-row{ grid-template-columns:1fr; }
+    .step-desc, .step-body{ margin-left:0; }
+    .step-head{ margin-bottom:2px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Last-mile revision</div>
+    <h1>Turn your cheatsheet into <em>the wallpaper you can't ignore</em>.</h1>
+    <p>The same trick as screenshotting your mistakes before the admission exam — except now Gemini pulls the formulas from your notebook, and this page turns every one of them into a wallpaper, sized exactly for your screen.</p>
+  </header>
+
+  <!-- STEP 1 -->
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num">1</div>
+      <h2>Copy this prompt into your Gemini Notebook</h2>
+    </div>
+    <div class="step-desc">Paste it into NotebookLM's chat with all your course sources uploaded. It tells Gemini exactly how to format every formula so this page can read it back.</div>
+    <div class="step-body">
+      <textarea id="promptBox" readonly></textarea>
+      <div class="btn-row">
+        <button class="btn primary" id="copyPromptBtn">Copy prompt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num">2</div>
+      <h2>Paste Gemini's answer back here</h2>
+    </div>
+    <div class="step-desc">Drop the full response below, exactly as Gemini gave it. No need to clean it up first.</div>
+    <div class="step-body">
+      <textarea id="pasteBox" placeholder="TYPE: FORMULA&#10;CHAPTER: Wave Optics&#10;TITLE: Young's Double Slit&#10;CONTENT: y_n = \frac{n\lambda D}{d}&#10;NOTE: position of nth bright fringe&#10;==="></textarea>
+      <div class="btn-row">
+        <button class="btn primary" id="parseBtn">Parse entries</button>
+        <button class="btn" id="loadSampleBtn">Load a sample instead</button>
+      </div>
+      <div id="summary"></div>
+      <div class="card-grid" id="cardGrid"></div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num">3</div>
+      <h2>Pick a theme and a resolution</h2>
+    </div>
+    <div class="step-desc">Match the resolution to your actual screen so nothing gets stretched or upscaled.</div>
+    <div class="step-body">
+
+      <div class="theme-grid" id="themeGrid"></div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Resolution preset</label>
+          <select id="resPreset"></select>
+        </div>
+        <div class="field">
+          <label>Layout mode</label>
+          <select id="layoutMode">
+            <option value="single">One wallpaper per formula</option>
+            <option value="grouped">Grouped — one per chapter</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="custom-res" id="customRes">
+        <div class="field"><label>Width (px)</label><input type="number" id="customW" value="1080"></div>
+        <div class="field"><label>Height (px)</label><input type="number" id="customH" value="2340"></div>
+      </div>
+
+      <div class="field-row" id="groupedOpts" style="display:none;">
+        <div class="field">
+          <label>Max formulas per grouped wallpaper</label>
+          <input type="number" id="maxPerPage" value="6" min="2" max="12">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num">4</div>
+      <h2>Preview</h2>
+    </div>
+    <div class="step-desc">Check that a formula actually renders the way you expect before generating the full batch.</div>
+    <div class="step-body">
+      <div class="preview-wrap">
+        <div class="phone"><div class="phone-screen" id="phoneScreen"><div class="ph-empty">Parse some entries to see a preview</div></div></div>
+        <div class="preview-meta">
+          <div class="label">Previewing entry</div>
+          <select id="previewPick"></select>
+          <div class="btn-row"><button class="btn" id="refreshPreviewBtn">Refresh preview</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num">5</div>
+      <h2>Generate &amp; export</h2>
+    </div>
+    <div class="step-desc">Renders every selected entry at full resolution, then hands you a ZIP — or saves straight into a folder you pick (Chrome / Edge only).</div>
+    <div class="step-body">
+      <div class="btn-row">
+        <button class="btn primary" id="generateBtn">Generate wallpapers</button>
+        <button class="btn" id="downloadZipBtn" disabled>Download as ZIP</button>
+        <button class="btn" id="saveFolderBtn" disabled>Save to folder</button>
+      </div>
+      <progress id="genProgress" value="0" max="1" style="display:none;"></progress>
+      <div id="genStatus"></div>
+    </div>
+  </div>
+
+  <footer>built for exam week — good luck</footer>
+</div>
+
+<!-- offscreen render stage, rendered at true pixel size then captured -->
+<div id="renderStage" style="position:fixed; left:-99999px; top:0;"></div>
+
+<script>
+/* ============================== DATA ============================== */
+
+const NOTEBOOK_PROMPT = `For every distinct formula, equation, or (for chapters that are conceptual rather than mathematical) key concept found across ALL sources in this notebook, output one entry in EXACTLY this format. Do not add any commentary, headers, or markdown outside of it — plain text only.
+
+For a formula:
+TYPE: FORMULA
+CHAPTER: <chapter or topic name>
+TITLE: <short 2-6 word name for this formula>
+CONTENT: <the formula in plain LaTeX, no $ signs and no code fences>
+NOTE: <one short line — what it's used for, or when to apply it>
+===
+
+For a conceptual chapter with no real derivation:
+TYPE: CONCEPT
+CHAPTER: <chapter or topic name>
+TITLE: <short title>
+CONTENT: <the concept stated in under 20 words>
+NOTE: <one short line of extra context>
+===
+
+Rules:
+- One entry per formula or concept, each separated by a line containing only ===
+- Go chapter by chapter and cover every source, don't skip minor formulas
+- CONTENT for FORMULA entries must be valid LaTeX (e.g. \\frac{a}{b}, \\sqrt{x}, \\Delta, \\theta, \\int, \\sum)
+- Never wrap the output in markdown code fences
+- Never add explanation before or after the entries`;
+
+const RES_PRESETS = [
+  { label:"Phone — FHD+ (1080×2340)", w:1080, h:2340 },
+  { label:"Phone — Samsung QHD+ (1440×3200)", w:1440, h:3200 },
+  { label:"Phone — iPhone (1170×2532)", w:1170, h:2532 },
+  { label:"Phone — compact (828×1792)", w:828, h:1792 },
+  { label:"Tablet (1600×2560)", w:1600, h:2560 },
+  { label:"Desktop — 1080p (1920×1080)", w:1920, h:1080 },
+  { label:"Desktop — 1440p (2560×1440)", w:2560, h:1440 },
+  { label:"Desktop — 4K (3840×2160)", w:3840, h:2160 },
+  { label:"Custom…", w:null, h:null },
+];
+
+const THEMES = {
+  obsidian: {
+    name:"Obsidian",
+    swatch:"linear-gradient(135deg,#0b0e14,#1c2333)",
+    bg:"radial-gradient(1200px 800px at 20% 0%, rgba(95,179,163,0.16), transparent 60%), radial-gradient(900px 700px at 100% 100%, rgba(232,163,61,0.08), transparent 55%), #0b0e14",
+    text:"#eef1f5",
+    muted:"#8791a6",
+    accent:"#5fb3a3",
+    chapterFont:"'IBM Plex Mono', monospace",
+    titleFont:"'Fraunces', serif",
+    bodyFont:"'Inter', sans-serif",
+  },
+  paper: {
+    name:"Paper Notes",
+    swatch:"linear-gradient(135deg,#f3ecd8,#e7dcc0)",
+    bg:"repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--ruleGap,54px) - 1px), rgba(31,41,55,0.10) var(--ruleGap,54px)), #f3ecd8",
+    text:"#25293a",
+    muted:"#6b6350",
+    accent:"#b5482f",
+    chapterFont:"'IBM Plex Mono', monospace",
+    titleFont:"'Fraunces', serif",
+    bodyFont:"'Inter', sans-serif",
+  },
+  terminal: {
+    name:"Terminal",
+    swatch:"linear-gradient(135deg,#03110a,#08210f)",
+    bg:"radial-gradient(1000px 600px at 50% 0%, rgba(34,197,94,0.10), transparent 60%), #05100a",
+    text:"#4ade80",
+    muted:"#2f7a4d",
+    accent:"#86efac",
+    chapterFont:"'IBM Plex Mono', monospace",
+    titleFont:"'IBM Plex Mono', monospace",
+    bodyFont:"'IBM Plex Mono', monospace",
+  },
+  sunset: {
+    name:"Sunset",
+    swatch:"linear-gradient(135deg,#2d1b4e,#c2542f,#e8a33d)",
+    bg:"linear-gradient(160deg, #241237 0%, #5a2a4d 35%, #a8442f 70%, #e08a2e 100%)",
+    text:"#fdf6ee",
+    muted:"#f0d2bb",
+    accent:"#ffd27a",
+    chapterFont:"'IBM Plex Mono', monospace",
+    titleFont:"'Fraunces', serif",
+    bodyFont:"'Inter', sans-serif",
+  },
+  mono: {
+    name:"Mono Minimal",
+    swatch:"linear-gradient(135deg,#ffffff,#e9e9e9)",
+    bg:"#ffffff",
+    text:"#0d0d0d",
+    muted:"#767676",
+    accent:"#0d0d0d",
+    chapterFont:"'IBM Plex Mono', monospace",
+    titleFont:"'Fraunces', serif",
+    bodyFont:"'Inter', sans-serif",
+  },
+};
+
+/* ============================== STATE ============================== */
+
+let items = [];          // parsed entries
+let selected = new Set();// ids currently included
+let currentTheme = "obsidian";
+
+/* ============================== INIT ============================== */
+
+document.getElementById('promptBox').value = NOTEBOOK_PROMPT;
+
+document.getElementById('copyPromptBtn').onclick = async () => {
+  await navigator.clipboard.writeText(NOTEBOOK_PROMPT);
+  flashBtn('copyPromptBtn', 'Copied ✓');
+};
+
+function flashBtn(id, text){
+  const btn = document.getElementById(id);
+  const old = btn.textContent;
+  btn.textContent = text;
+  setTimeout(()=>btn.textContent = old, 1400);
+}
+
+// resolution preset select
+const resSelect = document.getElementById('resPreset');
+RES_PRESETS.forEach((p, i) => {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = p.label;
+  resSelect.appendChild(opt);
+});
+resSelect.onchange = () => {
+  const isCustom = RES_PRESETS[resSelect.value].w === null;
+  document.getElementById('customRes').classList.toggle('show', isCustom);
+};
+
+document.getElementById('layoutMode').onchange = (e) => {
+  document.getElementById('groupedOpts').style.display = e.target.value === 'grouped' ? '' : 'none';
+};
+
+// theme swatches
+const themeGrid = document.getElementById('themeGrid');
+Object.entries(THEMES).forEach(([key, t]) => {
+  const el = document.createElement('div');
+  el.className = 'swatch' + (key === currentTheme ? ' active' : '');
+  el.dataset.key = key;
+  el.innerHTML = `<div class="dot" style="background:${t.swatch}"></div>${t.name}`;
+  el.onclick = () => {
+    currentTheme = key;
+    document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.key === key));
+  };
+  themeGrid.appendChild(el);
+});
+
+/* ============================== PARSING ============================== */
+
+function parseInput(raw){
+  const blocks = raw.split(/^\s*===\s*$/m).map(b => b.trim()).filter(Boolean);
+  const out = [];
+  blocks.forEach((block, i) => {
+    const entry = { id:i, type:'formula', chapter:'', title:'', content:'', note:'' };
+    block.split('\n').forEach(line => {
+      const m = line.match(/^\s*(TYPE|CHAPTER|TITLE|CONTENT|NOTE)\s*:\s*(.*)$/i);
+      if (!m) return;
+      const key = m[1].toUpperCase();
+      const val = m[2].trim();
+      if (key === 'TYPE') entry.type = /concept/i.test(val) ? 'concept' : 'formula';
+      else entry[key.toLowerCase()] = val;
+    });
+    if (entry.content) out.push(entry);
+  });
+  return out;
+}
+
+const SAMPLE = `TYPE: FORMULA
+CHAPTER: Wave Optics
+TITLE: Young's Double Slit
+CONTENT: y_n = \\frac{n\\lambda D}{d}
+NOTE: position of nth bright fringe on screen
+===
+TYPE: FORMULA
+CHAPTER: Wave Optics
+TITLE: Path Difference
+CONTENT: \\Delta = d\\sin\\theta
+NOTE: path difference between two coherent waves
+===
+TYPE: FORMULA
+CHAPTER: Modern Physics
+TITLE: de Broglie Wavelength
+CONTENT: \\lambda = \\frac{h}{p} = \\frac{h}{mv}
+NOTE: matter-wave wavelength of a moving particle
+===
+TYPE: CONCEPT
+CHAPTER: Modern Physics
+TITLE: Heisenberg Uncertainty
+CONTENT: Position and momentum can never both be known exactly at once
+NOTE: \\Delta x \\Delta p \\geq h/4\\pi
+===
+TYPE: FORMULA
+CHAPTER: Interference
+CONTENT: I = I_1 + I_2 + 2\\sqrt{I_1 I_2}\\cos\\phi
+TITLE: Resultant Intensity
+NOTE: intensity from superposition of two coherent sources
+===`;
+
+document.getElementById('loadSampleBtn').onclick = () => {
+  document.getElementById('pasteBox').value = SAMPLE;
+};
+
+document.getElementById('parseBtn').onclick = () => {
+  const raw = document.getElementById('pasteBox').value;
+  items = parseInput(raw);
+  selected = new Set(items.map(i => i.id));
+  renderCardGrid();
+  renderPreviewPicker();
+};
+
+function renderCardGrid(){
+  const grid = document.getElementById('cardGrid');
+  grid.innerHTML = '';
+  const fCount = items.filter(i=>i.type==='formula').length;
+  const cCount = items.filter(i=>i.type==='concept').length;
+  document.getElementById('summary').innerHTML =
+    items.length
+      ? `Parsed <b>${items.length}</b> entries — <b>${fCount}</b> formulas, <b>${cCount}</b> concepts. Click a card to exclude it.`
+      : `No entries found. Check that the pasted text uses the <code>TYPE / CHAPTER / TITLE / CONTENT / NOTE</code> format, separated by <code>===</code>.`;
+
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'pcard';
+    card.innerHTML = `<div class="tag"><span>${item.type}</span><span>#${item.id+1}</span></div>
+      <div class="ttl">${escapeHtml(item.title || '(untitled)')}</div>
+      <div class="ch">${escapeHtml(item.chapter || '—')}</div>`;
+    card.onclick = () => {
+      if (selected.has(item.id)) { selected.delete(item.id); card.classList.add('off'); }
+      else { selected.add(item.id); card.classList.remove('off'); }
+    };
+    grid.appendChild(card);
+  });
+}
+
+function renderPreviewPicker(){
+  const sel = document.getElementById('previewPick');
+  sel.innerHTML = '';
+  items.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item.id;
+    opt.textContent = `#${item.id+1} — ${item.title || item.chapter || 'entry'}`;
+    sel.appendChild(opt);
+  });
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============================== LAYOUT / RENDER ============================== */
+
+function getResolution(){
+  const preset = RES_PRESETS[resSelect.value];
+  if (preset.w) return { w:preset.w, h:preset.h };
+  return {
+    w: parseInt(document.getElementById('customW').value) || 1080,
+    h: parseInt(document.getElementById('customH').value) || 2340,
+  };
+}
+
+function slugify(s){
+  return (s||'untitled').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,40) || 'untitled';
+}
+
+// Builds the offscreen DOM for a single-item wallpaper, returns the stage element (ready to capture)
+function buildSingleCard(item, theme, w, h, indexInfo){
+  const t = THEMES[theme];
+  const stage = document.getElementById('renderStage');
+  stage.style.width = w + 'px';
+  stage.style.height = h + 'px';
+  stage.style.background = t.bg;
+  stage.style.setProperty('--ruleGap', Math.round(h/18)+'px');
+  stage.style.color = t.text;
+  stage.style.display = 'flex';
+  stage.style.flexDirection = 'column';
+  stage.style.justifyContent = 'center';
+  stage.style.alignItems = 'center';
+  stage.style.padding = Math.round(w*0.09) + 'px';
+  stage.style.fontFamily = t.bodyFont;
+  stage.style.boxSizing = 'border-box';
+  stage.innerHTML = '';
+
+  const chapterEl = document.createElement('div');
+  chapterEl.textContent = (item.chapter || '').toUpperCase();
+  chapterEl.style.fontFamily = t.chapterFont;
+  chapterEl.style.fontSize = Math.round(w*0.032) + 'px';
+  chapterEl.style.letterSpacing = '0.12em';
+  chapterEl.style.color = t.accent;
+  chapterEl.style.marginBottom = Math.round(h*0.035) + 'px';
+  chapterEl.style.textAlign = 'center';
+
+  const titleEl = document.createElement('div');
+  titleEl.textContent = item.title || '';
+  titleEl.style.fontFamily = t.titleFont;
+  titleEl.style.fontWeight = '600';
+  titleEl.style.fontSize = Math.round(w*0.058) + 'px';
+  titleEl.style.marginBottom = Math.round(h*0.045) + 'px';
+  titleEl.style.textAlign = 'center';
+  titleEl.style.lineHeight = '1.2';
+
+  const contentWrap = document.createElement('div');
+  contentWrap.style.width = '100%';
+  contentWrap.style.textAlign = 'center';
+  contentWrap.style.marginBottom = Math.round(h*0.05) + 'px';
+
+  if (item.type === 'formula'){
+    contentWrap.style.fontSize = Math.round(w*0.09) + 'px';
+    contentWrap.style.color = t.text;
+    try{
+      katex.render(item.content, contentWrap, { throwOnError:false, displayMode:true });
+    }catch(e){
+      contentWrap.textContent = item.content;
+    }
+  } else {
+    contentWrap.textContent = item.content;
+    contentWrap.style.fontFamily = t.titleFont;
+    contentWrap.style.fontStyle = 'italic';
+    contentWrap.style.fontSize = Math.round(w*0.052) + 'px';
+    contentWrap.style.lineHeight = '1.35';
+    contentWrap.style.padding = `0 ${Math.round(w*0.02)}px`;
+  }
+
+  const noteEl = document.createElement('div');
+  noteEl.textContent = item.note || '';
+  noteEl.style.fontFamily = t.bodyFont;
+  noteEl.style.fontSize = Math.round(w*0.028) + 'px';
+  noteEl.style.color = t.muted;
+  noteEl.style.textAlign = 'center';
+  noteEl.style.maxWidth = '86%';
+  noteEl.style.lineHeight = '1.4';
+
+  stage.appendChild(chapterEl);
+  stage.appendChild(titleEl);
+  stage.appendChild(contentWrap);
+  if (item.note) stage.appendChild(noteEl);
+
+  if (indexInfo){
+    const idx = document.createElement('div');
+    idx.textContent = indexInfo;
+    idx.style.position = 'absolute';
+    idx.style.bottom = Math.round(h*0.035) + 'px';
+    idx.style.right = Math.round(w*0.06) + 'px';
+    idx.style.fontFamily = t.chapterFont;
+    idx.style.fontSize = Math.round(w*0.024) + 'px';
+    idx.style.color = t.muted;
+    idx.style.opacity = '0.7';
+    stage.style.position = 'fixed';
+    stage.appendChild(idx);
+  }
+
+  return stage;
+}
+
+function buildGroupedCard(chapterName, chapterItems, theme, w, h, pageInfo){
+  const t = THEMES[theme];
+  const stage = document.getElementById('renderStage');
+  stage.style.width = w + 'px';
+  stage.style.height = h + 'px';
+  stage.style.background = t.bg;
+  stage.style.setProperty('--ruleGap', Math.round(h/18)+'px');
+  stage.style.color = t.text;
+  stage.style.display = 'flex';
+  stage.style.flexDirection = 'column';
+  stage.style.justifyContent = 'flex-start';
+  stage.style.alignItems = 'stretch';
+  stage.style.padding = Math.round(w*0.08) + 'px';
+  stage.style.fontFamily = t.bodyFont;
+  stage.style.boxSizing = 'border-box';
+  stage.innerHTML = '';
+
+  const headEl = document.createElement('div');
+  headEl.style.textAlign = 'center';
+  headEl.style.marginBottom = Math.round(h*0.04) + 'px';
+  const chapterEl = document.createElement('div');
+  chapterEl.textContent = chapterName.toUpperCase() + (pageInfo ? '  ·  ' + pageInfo : '');
+  chapterEl.style.fontFamily = t.chapterFont;
+  chapterEl.style.fontSize = Math.round(w*0.028) + 'px';
+  chapterEl.style.letterSpacing = '0.1em';
+  chapterEl.style.color = t.accent;
+  headEl.appendChild(chapterEl);
+  stage.appendChild(headEl);
+
+  const listWrap = document.createElement('div');
+  listWrap.style.flex = '1';
+  listWrap.style.display = 'flex';
+  listWrap.style.flexDirection = 'column';
+  listWrap.style.justifyContent = 'space-evenly';
+  listWrap.style.gap = Math.round(h*0.02) + 'px';
+
+  const n = chapterItems.length;
+  const rowFontScale = Math.max(0.55, Math.min(1, 6/n));
+
+  chapterItems.forEach(item => {
+    const row = document.createElement('div');
+    row.style.textAlign = 'center';
+
+    const rt = document.createElement('div');
+    rt.textContent = item.title || '';
+    rt.style.fontFamily = t.titleFont;
+    rt.style.fontWeight = '600';
+    rt.style.fontSize = Math.round(w*0.034*rowFontScale) + 'px';
+    rt.style.marginBottom = Math.round(h*0.008) + 'px';
+    row.appendChild(rt);
+
+    const rc = document.createElement('div');
+    if (item.type === 'formula'){
+      rc.style.fontSize = Math.round(w*0.05*rowFontScale) + 'px';
+      try{ katex.render(item.content, rc, { throwOnError:false, displayMode:true }); }
+      catch(e){ rc.textContent = item.content; }
+    } else {
+      rc.textContent = item.content;
+      rc.style.fontFamily = t.titleFont;
+      rc.style.fontStyle = 'italic';
+      rc.style.fontSize = Math.round(w*0.03*rowFontScale) + 'px';
+    }
+    row.appendChild(rc);
+    listWrap.appendChild(row);
+  });
+
+  stage.appendChild(listWrap);
+  return stage;
+}
+
+async function captureStage(stage, w, h){
+  await document.fonts.ready;
+  // give katex-rendered fonts a beat to paint
+  await new Promise(r => setTimeout(r, 60));
+  const canvas = await html2canvas(stage, { width:w, height:h, scale:1, backgroundColor:null, useCORS:true });
+  return canvas;
+}
+
+/* ============================== PREVIEW ============================== */
+
+async function updatePreview(){
+  if (!items.length) return;
+  const id = parseInt(document.getElementById('previewPick').value);
+  const item = items.find(i => i.id === id) || items[0];
+  const { w, h } = getResolution();
+  const stage = buildSingleCard(item, currentTheme, w, h, null);
+  const canvas = await captureStage(stage, w, h);
+  const screen = document.getElementById('phoneScreen');
+  screen.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = canvas.toDataURL('image/png');
+  screen.appendChild(img);
+}
+
+document.getElementById('refreshPreviewBtn').onclick = updatePreview;
+document.getElementById('previewPick').onchange = updatePreview;
+
+/* ============================== GENERATE / EXPORT ============================== */
+
+let generatedFiles = []; // {name, blob}
+
+document.getElementById('generateBtn').onclick = async () => {
+  if (!items.length){ alert('Parse some entries first (step 2).'); return; }
+  const chosen = items.filter(i => selected.has(i.id));
+  if (!chosen.length){ alert('Nothing is selected — click at least one card back in step 2.'); return; }
+
+  const { w, h } = getResolution();
+  const mode = document.getElementById('layoutMode').value;
+  const progress = document.getElementById('genProgress');
+  const status = document.getElementById('genStatus');
+  progress.style.display = '';
+  generatedFiles = [];
+
+  let tasks = [];
+  if (mode === 'single'){
+    tasks = chosen.map((item, i) => ({ item, index: i+1, total: chosen.length }));
+  } else {
+    const maxPerPage = parseInt(document.getElementById('maxPerPage').value) || 6;
+    const byChapter = {};
+    chosen.forEach(it => { (byChapter[it.chapter || 'Untitled'] ||= []).push(it); });
+    tasks = [];
+    Object.entries(byChapter).forEach(([chapter, arr]) => {
+      const pages = [];
+      for (let i=0; i<arr.length; i+=maxPerPage) pages.push(arr.slice(i, i+maxPerPage));
+      pages.forEach((page, pi) => tasks.push({ chapter, page, pageIndex:pi+1, pageTotal:pages.length }));
+    });
+  }
+
+  progress.max = tasks.length;
+  progress.value = 0;
+
+  for (let i=0; i<tasks.length; i++){
+    const task = tasks[i];
+    let stage, name;
+    if (mode === 'single'){
+      stage = buildSingleCard(task.item, currentTheme, w, h, `${task.index}/${task.total}`);
+      name = `${String(task.index).padStart(2,'0')}_${slugify(task.item.chapter)}_${slugify(task.item.title)}_${w}x${h}.png`;
+    } else {
+      const pageInfo = task.pageTotal > 1 ? `page ${task.pageIndex}/${task.pageTotal}` : '';
+      stage = buildGroupedCard(task.chapter, task.page, currentTheme, w, h, pageInfo);
+      name = `${String(i+1).padStart(2,'0')}_${slugify(task.chapter)}${task.pageTotal>1?'-p'+task.pageIndex:''}_${w}x${h}.png`;
+    }
+    status.textContent = `Rendering ${i+1} / ${tasks.length} — ${name}`;
+    const canvas = await captureStage(stage, w, h);
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    generatedFiles.push({ name, blob });
+    progress.value = i+1;
+  }
+
+  status.textContent = `Done — ${generatedFiles.length} wallpaper${generatedFiles.length>1?'s':''} ready.`;
+  document.getElementById('downloadZipBtn').disabled = false;
+  document.getElementById('saveFolderBtn').disabled = !('showDirectoryPicker' in window);
+  if (!('showDirectoryPicker' in window)){
+    document.getElementById('saveFolderBtn').title = 'Folder saving needs a Chromium browser (Chrome / Edge)';
+  }
+};
+
+document.getElementById('downloadZipBtn').onclick = async () => {
+  if (!generatedFiles.length) return;
+  const zip = new JSZip();
+  generatedFiles.forEach(f => zip.file(f.name, f.blob));
+  const blob = await zip.generateAsync({ type:'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'revision-wallpapers.zip';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+document.getElementById('saveFolderBtn').onclick = async () => {
+  if (!generatedFiles.length) return;
+  try{
+    const dirHandle = await window.showDirectoryPicker();
+    for (const f of generatedFiles){
+      const fileHandle = await dirHandle.getFileHandle(f.name, { create:true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(f.blob);
+      await writable.close();
+    }
+    document.getElementById('genStatus').textContent = `Saved ${generatedFiles.length} files to the chosen folder.`;
+  }catch(e){
+    if (e.name !== 'AbortError') alert('Could not save to folder: ' + e.message);
+  }
+};
+
+</script>
+</body>
+</html>
