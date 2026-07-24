@@ -415,6 +415,7 @@
           <div class="label">Previewing entry</div>
           <select id="previewPick"></select>
           <div class="btn-row"><button class="btn" id="refreshPreviewBtn">Refresh preview</button></div>
+          <div id="previewDims" class="hint"></div>
         </div>
       </div>
     </div>
@@ -712,60 +713,110 @@ function slugify(s){
   return (s||'untitled').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,40) || 'untitled';
 }
 
-// Builds the offscreen DOM for a single-item wallpaper, returns the stage element (ready to capture)
-function buildSingleCard(item, theme, w, h, indexInfo){
+// Measures the actual rendered width of a KaTeX formula (ignores container overflow settings)
+function measureKatexWidth(container){
+  const el = container.querySelector('.katex') || container;
+  return el.getBoundingClientRect().width;
+}
+
+// Shrinks a rendered formula's font-size until it fits maxWidth, or bottoms out at a safety floor
+function fitFormulaToWidth(container, maxWidth, startPx, minPx){
+  let fontSize = startPx;
+  container.style.fontSize = fontSize + 'px';
+  let width = measureKatexWidth(container);
+  while (width > maxWidth && fontSize > minPx){
+    fontSize = Math.max(minPx, Math.floor(fontSize * 0.93));
+    container.style.fontSize = fontSize + 'px';
+    width = measureKatexWidth(container);
+  }
+  // last-resort: still overflowing at the "readable" floor — keep shrinking down to an absolute minimum
+  // rather than let it get cut off. A tiny-but-complete equation beats a large-but-truncated one.
+  while (width > maxWidth && fontSize > 12){
+    fontSize = Math.max(12, Math.floor(fontSize * 0.93));
+    container.style.fontSize = fontSize + 'px';
+    width = measureKatexWidth(container);
+  }
+  return { fontSize, width, fits: width <= maxWidth + 0.5 };
+}
+
+// Builds the offscreen DOM for a single-item wallpaper.
+// Font sizes/margins scale off min(w,h) so the layout doesn't blow up on wide (desktop) canvases.
+// If a formula still overflows at the smallest readable size, and we're in a portrait-ish
+// resolution, it retries once with width/height swapped (landscape) to give it more room.
+// Returns {stage, w, h, landscape} — w/h are the ACTUAL dimensions used (may differ from input).
+function buildSingleCard(item, theme, w, h, indexInfo, allowLandscapeFallback, isSwapped){
+  if (allowLandscapeFallback === undefined) allowLandscapeFallback = true;
+  if (isSwapped === undefined) isSwapped = false;
+
   const t = THEMES[theme];
+  const base = Math.min(w, h);
+  const paddingV = Math.round(h*0.07);
+  const paddingH = Math.round(w*0.09);
   const stage = document.getElementById('renderStage');
   stage.style.width = w + 'px';
   stage.style.height = h + 'px';
   stage.style.background = t.bg;
-  stage.style.setProperty('--ruleGap', Math.round(h/18)+'px');
+  stage.style.setProperty('--ruleGap', Math.round(base/16)+'px');
   stage.style.color = t.text;
   stage.style.display = 'flex';
   stage.style.flexDirection = 'column';
   stage.style.justifyContent = 'center';
   stage.style.alignItems = 'center';
-  stage.style.padding = Math.round(w*0.09) + 'px';
+  stage.style.padding = paddingV + 'px ' + paddingH + 'px';
   stage.style.fontFamily = t.bodyFont;
   stage.style.boxSizing = 'border-box';
+  stage.style.position = 'fixed';
   stage.innerHTML = '';
 
   const chapterEl = document.createElement('div');
   chapterEl.textContent = (item.chapter || '').toUpperCase();
   chapterEl.style.fontFamily = t.chapterFont;
-  chapterEl.style.fontSize = Math.round(w*0.032) + 'px';
+  chapterEl.style.fontSize = Math.round(base*0.032) + 'px';
   chapterEl.style.letterSpacing = '0.12em';
   chapterEl.style.color = t.accent;
-  chapterEl.style.marginBottom = Math.round(h*0.035) + 'px';
+  chapterEl.style.marginBottom = Math.round(base*0.05) + 'px';
   chapterEl.style.textAlign = 'center';
 
   const titleEl = document.createElement('div');
   titleEl.textContent = item.title || '';
   titleEl.style.fontFamily = t.titleFont;
   titleEl.style.fontWeight = '600';
-  titleEl.style.fontSize = Math.round(w*0.058) + 'px';
-  titleEl.style.marginBottom = Math.round(h*0.045) + 'px';
+  titleEl.style.fontSize = Math.round(base*0.058) + 'px';
+  titleEl.style.marginBottom = Math.round(base*0.06) + 'px';
   titleEl.style.textAlign = 'center';
   titleEl.style.lineHeight = '1.2';
 
   const contentWrap = document.createElement('div');
   contentWrap.style.width = '100%';
   contentWrap.style.textAlign = 'center';
-  contentWrap.style.marginBottom = Math.round(h*0.05) + 'px';
+  contentWrap.style.marginBottom = Math.round(base*0.06) + 'px';
 
+  stage.appendChild(chapterEl);
+  stage.appendChild(titleEl);
+  stage.appendChild(contentWrap);
+
+  let fitResult = null;
   if (item.type === 'formula'){
-    contentWrap.style.fontSize = Math.round(w*0.09) + 'px';
     contentWrap.style.color = t.text;
     try{
       katex.render(item.content, contentWrap, { throwOnError:false, displayMode:true });
     }catch(e){
       contentWrap.textContent = item.content;
     }
+    const startPx = Math.round(base*0.10);
+    const minPx = Math.round(base*0.035);
+    const availWidth = contentWrap.getBoundingClientRect().width;
+    fitResult = fitFormulaToWidth(contentWrap, availWidth, startPx, minPx);
+
+    if (!fitResult.fits && allowLandscapeFallback && w < h){
+      // doesn't fit even at the smallest readable size — retry rotated, once
+      return buildSingleCard(item, theme, h, w, indexInfo, false, true);
+    }
   } else {
     contentWrap.textContent = item.content;
     contentWrap.style.fontFamily = t.titleFont;
     contentWrap.style.fontStyle = 'italic';
-    contentWrap.style.fontSize = Math.round(w*0.052) + 'px';
+    contentWrap.style.fontSize = Math.round(base*0.05) + 'px';
     contentWrap.style.lineHeight = '1.35';
     contentWrap.style.padding = `0 ${Math.round(w*0.02)}px`;
   }
@@ -773,58 +824,59 @@ function buildSingleCard(item, theme, w, h, indexInfo){
   const noteEl = document.createElement('div');
   noteEl.textContent = item.note || '';
   noteEl.style.fontFamily = t.bodyFont;
-  noteEl.style.fontSize = Math.round(w*0.028) + 'px';
+  noteEl.style.fontSize = Math.round(base*0.03) + 'px';
   noteEl.style.color = t.muted;
   noteEl.style.textAlign = 'center';
   noteEl.style.maxWidth = '86%';
   noteEl.style.lineHeight = '1.4';
-
-  stage.appendChild(chapterEl);
-  stage.appendChild(titleEl);
-  stage.appendChild(contentWrap);
   if (item.note) stage.appendChild(noteEl);
 
   if (indexInfo){
     const idx = document.createElement('div');
     idx.textContent = indexInfo;
     idx.style.position = 'absolute';
-    idx.style.bottom = Math.round(h*0.035) + 'px';
+    idx.style.bottom = Math.round(base*0.035) + 'px';
     idx.style.right = Math.round(w*0.06) + 'px';
     idx.style.fontFamily = t.chapterFont;
-    idx.style.fontSize = Math.round(w*0.024) + 'px';
+    idx.style.fontSize = Math.round(base*0.024) + 'px';
     idx.style.color = t.muted;
     idx.style.opacity = '0.7';
-    stage.style.position = 'fixed';
     stage.appendChild(idx);
   }
 
-  return stage;
+  return { stage, w, h, landscape: isSwapped };
 }
 
+// Builds the offscreen DOM for a chapter-grouped wallpaper. Same min(w,h) scaling fix as above,
+// plus each row's formula gets its own shrink-to-fit pass so one long line can't blow out the rest.
 function buildGroupedCard(chapterName, chapterItems, theme, w, h, pageInfo){
   const t = THEMES[theme];
+  const base = Math.min(w, h);
+  const paddingV = Math.round(h*0.06);
+  const paddingH = Math.round(w*0.08);
   const stage = document.getElementById('renderStage');
   stage.style.width = w + 'px';
   stage.style.height = h + 'px';
   stage.style.background = t.bg;
-  stage.style.setProperty('--ruleGap', Math.round(h/18)+'px');
+  stage.style.setProperty('--ruleGap', Math.round(base/16)+'px');
   stage.style.color = t.text;
   stage.style.display = 'flex';
   stage.style.flexDirection = 'column';
   stage.style.justifyContent = 'flex-start';
   stage.style.alignItems = 'stretch';
-  stage.style.padding = Math.round(w*0.08) + 'px';
+  stage.style.padding = paddingV + 'px ' + paddingH + 'px';
   stage.style.fontFamily = t.bodyFont;
   stage.style.boxSizing = 'border-box';
+  stage.style.position = 'fixed';
   stage.innerHTML = '';
 
   const headEl = document.createElement('div');
   headEl.style.textAlign = 'center';
-  headEl.style.marginBottom = Math.round(h*0.04) + 'px';
+  headEl.style.marginBottom = Math.round(base*0.045) + 'px';
   const chapterEl = document.createElement('div');
   chapterEl.textContent = chapterName.toUpperCase() + (pageInfo ? '  ·  ' + pageInfo : '');
   chapterEl.style.fontFamily = t.chapterFont;
-  chapterEl.style.fontSize = Math.round(w*0.028) + 'px';
+  chapterEl.style.fontSize = Math.round(base*0.028) + 'px';
   chapterEl.style.letterSpacing = '0.1em';
   chapterEl.style.color = t.accent;
   headEl.appendChild(chapterEl);
@@ -835,40 +887,46 @@ function buildGroupedCard(chapterName, chapterItems, theme, w, h, pageInfo){
   listWrap.style.display = 'flex';
   listWrap.style.flexDirection = 'column';
   listWrap.style.justifyContent = 'space-evenly';
-  listWrap.style.gap = Math.round(h*0.02) + 'px';
+  listWrap.style.gap = Math.round(base*0.025) + 'px';
+  stage.appendChild(listWrap);
 
   const n = chapterItems.length;
-  const rowFontScale = Math.max(0.55, Math.min(1, 6/n));
+  const rowFontScale = Math.max(0.5, Math.min(1, 6/n));
 
   chapterItems.forEach(item => {
     const row = document.createElement('div');
     row.style.textAlign = 'center';
+    row.style.width = '100%';
 
     const rt = document.createElement('div');
     rt.textContent = item.title || '';
     rt.style.fontFamily = t.titleFont;
     rt.style.fontWeight = '600';
-    rt.style.fontSize = Math.round(w*0.034*rowFontScale) + 'px';
-    rt.style.marginBottom = Math.round(h*0.008) + 'px';
+    rt.style.fontSize = Math.round(base*0.034*rowFontScale) + 'px';
+    rt.style.marginBottom = Math.round(base*0.01) + 'px';
     row.appendChild(rt);
 
     const rc = document.createElement('div');
+    rc.style.width = '100%';
+    row.appendChild(rc);
+    listWrap.appendChild(row);
+
     if (item.type === 'formula'){
-      rc.style.fontSize = Math.round(w*0.05*rowFontScale) + 'px';
       try{ katex.render(item.content, rc, { throwOnError:false, displayMode:true }); }
       catch(e){ rc.textContent = item.content; }
+      const startPx = Math.round(base*0.05*rowFontScale);
+      const minPx = Math.max(12, Math.round(base*0.02*rowFontScale));
+      const availWidth = rc.getBoundingClientRect().width;
+      fitFormulaToWidth(rc, availWidth, startPx, minPx);
     } else {
       rc.textContent = item.content;
       rc.style.fontFamily = t.titleFont;
       rc.style.fontStyle = 'italic';
-      rc.style.fontSize = Math.round(w*0.03*rowFontScale) + 'px';
+      rc.style.fontSize = Math.round(base*0.03*rowFontScale) + 'px';
     }
-    row.appendChild(rc);
-    listWrap.appendChild(row);
   });
 
-  stage.appendChild(listWrap);
-  return stage;
+  return { stage, w, h, landscape:false };
 }
 
 async function captureStage(stage, w, h){
@@ -886,13 +944,19 @@ async function updatePreview(){
   const id = parseInt(document.getElementById('previewPick').value);
   const item = items.find(i => i.id === id) || items[0];
   const { w, h } = getResolution();
-  const stage = buildSingleCard(item, currentTheme, w, h, null);
-  const canvas = await captureStage(stage, w, h);
+  const built = buildSingleCard(item, currentTheme, w, h, null);
+  const canvas = await captureStage(built.stage, built.w, built.h);
   const screen = document.getElementById('phoneScreen');
   screen.innerHTML = '';
   const img = document.createElement('img');
   img.src = canvas.toDataURL('image/png');
+  img.style.objectFit = built.landscape ? 'contain' : 'cover';
+  screen.style.background = built.landscape ? '#000' : 'transparent';
   screen.appendChild(img);
+  const dimsEl = document.getElementById('previewDims');
+  dimsEl.textContent = built.landscape
+    ? `Rendered at ${built.w}×${built.h} — switched to landscape, this equation was too long for portrait.`
+    : `Rendered at ${built.w}×${built.h}`;
 }
 
 document.getElementById('refreshPreviewBtn').onclick = updatePreview;
@@ -931,26 +995,29 @@ document.getElementById('generateBtn').onclick = async () => {
 
   progress.max = tasks.length;
   progress.value = 0;
+  let landscapeCount = 0;
 
   for (let i=0; i<tasks.length; i++){
     const task = tasks[i];
-    let stage, name;
+    let built, name;
     if (mode === 'single'){
-      stage = buildSingleCard(task.item, currentTheme, w, h, `${task.index}/${task.total}`);
-      name = `${String(task.index).padStart(2,'0')}_${slugify(task.item.chapter)}_${slugify(task.item.title)}_${w}x${h}.png`;
+      built = buildSingleCard(task.item, currentTheme, w, h, `${task.index}/${task.total}`);
+      if (built.landscape) landscapeCount++;
+      name = `${String(task.index).padStart(2,'0')}_${slugify(task.item.chapter)}_${slugify(task.item.title)}_${built.w}x${built.h}${built.landscape?'-landscape':''}.png`;
     } else {
       const pageInfo = task.pageTotal > 1 ? `page ${task.pageIndex}/${task.pageTotal}` : '';
-      stage = buildGroupedCard(task.chapter, task.page, currentTheme, w, h, pageInfo);
-      name = `${String(i+1).padStart(2,'0')}_${slugify(task.chapter)}${task.pageTotal>1?'-p'+task.pageIndex:''}_${w}x${h}.png`;
+      built = buildGroupedCard(task.chapter, task.page, currentTheme, w, h, pageInfo);
+      name = `${String(i+1).padStart(2,'0')}_${slugify(task.chapter)}${task.pageTotal>1?'-p'+task.pageIndex:''}_${built.w}x${built.h}.png`;
     }
     status.textContent = `Rendering ${i+1} / ${tasks.length} — ${name}`;
-    const canvas = await captureStage(stage, w, h);
+    const canvas = await captureStage(built.stage, built.w, built.h);
     const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
     generatedFiles.push({ name, blob });
     progress.value = i+1;
   }
 
-  status.textContent = `Done — ${generatedFiles.length} wallpaper${generatedFiles.length>1?'s':''} ready.`;
+  status.textContent = `Done — ${generatedFiles.length} wallpaper${generatedFiles.length>1?'s':''} ready.`
+    + (landscapeCount ? ` ${landscapeCount} long equation${landscapeCount>1?'s were':' was'} auto-rotated to landscape to fit.` : '');
   document.getElementById('downloadZipBtn').disabled = false;
   document.getElementById('saveFolderBtn').disabled = !('showDirectoryPicker' in window);
   if (!('showDirectoryPicker' in window)){
