@@ -549,6 +549,39 @@ let items = [];          // parsed entries
 let selected = new Set();// ids currently included
 let currentTheme = "obsidian";
 
+// Fonts (KaTeX math fonts especially) are only fetched by the browser the first time
+// they're actually needed to paint something. If we measure a formula's width before
+// that fetch finishes, the browser reports a size based on a fallback font — narrower
+// than the real one — so a formula can look like it "fits" and then run wider once the
+// real font paints in. Rendering one throwaway formula immediately, off-screen, forces
+// the browser to request every font family we'll need well ahead of time, so by the
+// time anything is actually measured, document.fonts.ready reflects reality.
+let fontsReadyPromise = null;
+function ensureFontsWarmedUp(){
+  if (!fontsReadyPromise){
+    const warm = document.getElementById('renderStage');
+    try{
+      katex.render(
+        "\\frac{a}{b}+\\sqrt{x}+\\sum_{i=0}^{n}\\int_a^b \\mathbf{v}\\,\\mathcal{L}\\,\\mathfrak{g}\\,\\mathrm{d}x\\,\\boldsymbol{\\theta}\\,\\text{abc}\\,\\alpha\\beta\\gamma\\Delta\\Omega\\partial",
+        warm,
+        { throwOnError:false, displayMode:true }
+      );
+    }catch(e){}
+    const extra = Promise.all([
+      document.fonts.load('600 16px Fraunces').catch(()=>{}),
+      document.fonts.load('400 16px Fraunces').catch(()=>{}),
+      document.fonts.load('400 16px Inter').catch(()=>{}),
+      document.fonts.load('600 16px Inter').catch(()=>{}),
+      document.fonts.load('500 16px "IBM Plex Mono"').catch(()=>{}),
+    ]);
+    fontsReadyPromise = Promise.all([document.fonts.ready, extra]).then(() => {
+      warm.innerHTML = '';
+    });
+  }
+  return fontsReadyPromise;
+}
+ensureFontsWarmedUp();
+
 /* ============================== INIT ============================== */
 
 document.getElementById('promptBox').value = NOTEBOOK_PROMPT;
@@ -747,7 +780,10 @@ function fitFormulaToWidth(container, maxWidth, startPx, minPx){
 function buildSingleCard(item, theme, w, h, indexInfo, allowLandscapeFallback, isSwapped){
   if (allowLandscapeFallback === undefined) allowLandscapeFallback = true;
   if (isSwapped === undefined) isSwapped = false;
+  return ensureFontsWarmedUp().then(() => buildSingleCardSync(item, theme, w, h, indexInfo, allowLandscapeFallback, isSwapped));
+}
 
+function buildSingleCardSync(item, theme, w, h, indexInfo, allowLandscapeFallback, isSwapped){
   const t = THEMES[theme];
   const base = Math.min(w, h);
   const paddingV = Math.round(h*0.07);
@@ -805,12 +841,12 @@ function buildSingleCard(item, theme, w, h, indexInfo, allowLandscapeFallback, i
     }
     const startPx = Math.round(base*0.10);
     const minPx = Math.round(base*0.035);
-    const availWidth = contentWrap.getBoundingClientRect().width;
+    const availWidth = contentWrap.getBoundingClientRect().width * 0.96; // small safety margin
     fitResult = fitFormulaToWidth(contentWrap, availWidth, startPx, minPx);
 
     if (!fitResult.fits && allowLandscapeFallback && w < h){
       // doesn't fit even at the smallest readable size — retry rotated, once
-      return buildSingleCard(item, theme, h, w, indexInfo, false, true);
+      return buildSingleCardSync(item, theme, h, w, indexInfo, false, true);
     }
   } else {
     contentWrap.textContent = item.content;
@@ -850,6 +886,10 @@ function buildSingleCard(item, theme, w, h, indexInfo, allowLandscapeFallback, i
 // Builds the offscreen DOM for a chapter-grouped wallpaper. Same min(w,h) scaling fix as above,
 // plus each row's formula gets its own shrink-to-fit pass so one long line can't blow out the rest.
 function buildGroupedCard(chapterName, chapterItems, theme, w, h, pageInfo){
+  return ensureFontsWarmedUp().then(() => buildGroupedCardSync(chapterName, chapterItems, theme, w, h, pageInfo));
+}
+
+function buildGroupedCardSync(chapterName, chapterItems, theme, w, h, pageInfo){
   const t = THEMES[theme];
   const base = Math.min(w, h);
   const paddingV = Math.round(h*0.06);
@@ -916,7 +956,7 @@ function buildGroupedCard(chapterName, chapterItems, theme, w, h, pageInfo){
       catch(e){ rc.textContent = item.content; }
       const startPx = Math.round(base*0.05*rowFontScale);
       const minPx = Math.max(12, Math.round(base*0.02*rowFontScale));
-      const availWidth = rc.getBoundingClientRect().width;
+      const availWidth = rc.getBoundingClientRect().width * 0.96;
       fitFormulaToWidth(rc, availWidth, startPx, minPx);
     } else {
       rc.textContent = item.content;
@@ -944,7 +984,7 @@ async function updatePreview(){
   const id = parseInt(document.getElementById('previewPick').value);
   const item = items.find(i => i.id === id) || items[0];
   const { w, h } = getResolution();
-  const built = buildSingleCard(item, currentTheme, w, h, null);
+  const built = await buildSingleCard(item, currentTheme, w, h, null);
   const canvas = await captureStage(built.stage, built.w, built.h);
   const screen = document.getElementById('phoneScreen');
   screen.innerHTML = '';
@@ -1001,12 +1041,12 @@ document.getElementById('generateBtn').onclick = async () => {
     const task = tasks[i];
     let built, name;
     if (mode === 'single'){
-      built = buildSingleCard(task.item, currentTheme, w, h, `${task.index}/${task.total}`);
+      built = await buildSingleCard(task.item, currentTheme, w, h, `${task.index}/${task.total}`);
       if (built.landscape) landscapeCount++;
       name = `${String(task.index).padStart(2,'0')}_${slugify(task.item.chapter)}_${slugify(task.item.title)}_${built.w}x${built.h}${built.landscape?'-landscape':''}.png`;
     } else {
       const pageInfo = task.pageTotal > 1 ? `page ${task.pageIndex}/${task.pageTotal}` : '';
-      built = buildGroupedCard(task.chapter, task.page, currentTheme, w, h, pageInfo);
+      built = await buildGroupedCard(task.chapter, task.page, currentTheme, w, h, pageInfo);
       name = `${String(i+1).padStart(2,'0')}_${slugify(task.chapter)}${task.pageTotal>1?'-p'+task.pageIndex:''}_${built.w}x${built.h}.png`;
     }
     status.textContent = `Rendering ${i+1} / ${tasks.length} — ${name}`;
