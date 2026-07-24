@@ -748,8 +748,22 @@ function slugify(s){
 
 // Measures the actual rendered width of a KaTeX formula (ignores container overflow settings)
 function measureKatexWidth(container){
-  const el = container.querySelector('.katex') || container;
-  return el.getBoundingClientRect().width;
+  // .katex-display > .katex is display:block, so it always reports its CONTAINER's
+  // width via getBoundingClientRect — completely independent of whether the glyphs
+  // inside it actually overflow. .base (display:inline-block; width:min-content) is
+  // the element that genuinely shrink-wraps to the rendered content, so measure that.
+  const bases = container.querySelectorAll('.base');
+  if (bases.length){
+    let minLeft = Infinity, maxRight = -Infinity;
+    bases.forEach(el => {
+      const r = el.getBoundingClientRect();
+      minLeft = Math.min(minLeft, r.left);
+      maxRight = Math.max(maxRight, r.right);
+    });
+    return maxRight - minLeft;
+  }
+  // Fallback (e.g. a parse error left plain text instead of KaTeX markup)
+  return container.getBoundingClientRect().width;
 }
 
 // Shrinks a rendered formula's font-size until it fits maxWidth, or bottoms out at a safety floor
